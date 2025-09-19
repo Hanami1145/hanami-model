@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>3D Model Viewer</title>
+    <!-- 引入 Google 的 model-viewer 库 -->
+    <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+    <style>
+      body {
+        margin: 0;
+        background: #111;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+      }
+      model-viewer {
+        width: 80vw;
+        height: 80vh;
+        background-color: #222;
+        border-radius: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <model-viewer
+      src="./models/manuka_down_jacket_compressed.glb"
+      alt="3D Jacket"
+      auto-rotate
+      camera-controls
+      ar
+      exposure="1.2"
+      shadow-intensity="1"
+    ></model-viewer>
+  </body>
+</html>
