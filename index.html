@@ -1,36 +1,128 @@
 <!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <title>3D Model Viewer</title>
-    <!-- 引入 Google 的 model-viewer 库 -->
-    <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
-    <style>
-      body {
-        margin: 0;
-        background: #111;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        height: 100vh;
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Hanami 的模型小屋</title>
+<style>
+  html,body { height:100%; margin:0; font-family: "Helvetica Neue", Arial, sans-serif; background:#f0f0f0; color:#222; }
+  header { text-align:center; padding:12px 0; font-weight:700; background:rgba(255,255,255,0.9); box-shadow:0 2px 6px rgba(0,0,0,.08); }
+  #container { width:100%; height:calc(100vh - 56px); display:flex; align-items:center; justify-content:center; }
+  #model-viewer { width:min(1200px,95%); height:90%; border-radius:10px; overflow:hidden; background:#222; box-shadow:0 8px 24px rgba(0,0,0,.2); position:relative; }
+  #loadingOverlay { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.45); color:#fff; font-size:16px; z-index:20; flex-direction:column; }
+  #loadingBar { width:60%; height:8px; background:rgba(255,255,255,0.15); border-radius:4px; margin-top:12px; overflow:hidden; }
+  #loadingProgress { height:100%; width:0%; background:linear-gradient(90deg,#ff7a7a,#ff3d3d); transition:width .2s; }
+  canvas { display:block; }
+  footer { text-align:center; font-weight:bold; padding:10px 0; background:rgba(255,255,255,0.6); }
+</style>
+</head>
+<body>
+  <header>Hanami 的模型小屋</header>
+
+  <div id="container">
+    <div id="model-viewer">
+      <div id="loadingOverlay">
+        <div id="loadingText">加载模型…</div>
+        <div id="loadingBar"><div id="loadingProgress"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <footer>© 2025 Hanami · ❀</footer>
+
+  <!-- 必须先引入 meshopt 的 JS wrapper（它会在运行时加载 .wasm） -->
+  <script src="libs/meshopt/meshopt_decoder.js"></script>
+
+  <!-- three + loaders 用 CDN（模块化） -->
+  <script type="module">
+  import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+  import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js';
+  import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+
+  (async ()=> {
+    const viewer = document.getElementById('model-viewer');
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    const loadingText = document.getElementById('loadingText');
+    const loadingBar = document.getElementById('loadingProgress');
+
+    // 初始化场景/相机/渲染器
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, viewer.clientWidth / viewer.clientHeight, 0.1, 1000);
+    camera.position.set(0, 1.6, 3.2);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    renderer.setPixelRatio(window.devicePixelRatio || 1);
+    renderer.setSize(viewer.clientWidth, viewer.clientHeight);
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    viewer.appendChild(renderer.domElement);
+
+    // 控制器
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.screenSpacePanning = false;
+
+    // 灯光
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.2));
+    const dir = new THREE.DirectionalLight(0xffffff, 1);
+    dir.position.set(5, 10, 7.5);
+    scene.add(dir);
+
+    // GLTFLoader
+    const loader = new GLTFLoader();
+
+    // —— meshopt 支持：等待并设置 decoder（如果 loader 需要）
+    if (typeof MeshoptDecoder !== 'undefined') {
+      if (MeshoptDecoder.ready) {
+        try { await MeshoptDecoder.ready; } catch(e) { console.warn('Meshopt ready failed', e); }
       }
-      model-viewer {
-        width: 80vw;
-        height: 80vh;
-        background-color: #222;
-        border-radius: 12px;
+      // 把 MeshoptDecoder 传给 loader（重要）
+      loader.setMeshoptDecoder(MeshoptDecoder);
+    } else {
+      console.warn('MeshoptDecoder 未定义；若模型使用 meshopt 压缩会加载失败。');
+    }
+
+    // 模型路径（相对仓库根）
+    const MODEL_URL = 'models/manuka_down_jacket_compressed.glb';
+
+    loader.load(
+      MODEL_URL,
+      (gltf) => {
+        // 模型加载成功
+        scene.add(gltf.scene);
+        loadingOverlay.style.display = 'none';
+      },
+      (xhr) => {
+        // 进度回调（xhr.loaded/xhr.total 可能会为 undefined）
+        if (xhr && xhr.loaded && xhr.total) {
+          const pct = Math.round((xhr.loaded / xhr.total) * 100);
+          loadingText.textContent = `加载中 ${pct}%`;
+          loadingBar.style.width = pct + '%';
+        } else {
+          loadingText.textContent = `加载中…`;
+        }
+      },
+      (err) => {
+        console.error('模型加载错误：', err);
+        loadingText.textContent = '模型加载失败（查看控制台）';
       }
-    </style>
-  </head>
-  <body>
-    <model-viewer
-      src="./models/manuka_down_jacket_compressed.glb"
-      alt="3D Jacket"
-      auto-rotate
-      camera-controls
-      ar
-      exposure="1.2"
-      shadow-intensity="1"
-    ></model-viewer>
-  </body>
+    );
+
+    // 渲染循环
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    // 窗口缩放自适应
+    window.addEventListener('resize', ()=>{
+      camera.aspect = viewer.clientWidth / viewer.clientHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(viewer.clientWidth, viewer.clientHeight);
+    });
+  })();
+  </script>
+</body>
 </html>
